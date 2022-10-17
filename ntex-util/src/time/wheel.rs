@@ -6,8 +6,9 @@ use std::cell::RefCell;
 use std::time::{Duration, Instant, SystemTime};
 use std::{cmp::max, future::Future, mem, pin::Pin, rc::Rc, task, task::Poll};
 
-use futures_timer::Delay;
+// use futures_timer::Delay;
 use slab::Slab;
+use tokio::time::{Sleep as Delay, sleep};
 
 use crate::task::LocalWaker;
 
@@ -149,14 +150,14 @@ struct Timer {
     next_expiry: u64,
     flags: Flags,
     driver: LocalWaker,
-    driver_sleep: Delay,
+    driver_sleep: Pin<Box<Delay>>,
     buckets: Vec<Bucket>,
     /// Bit field tracking which bucket currently contain entries.
     occupied: [u64; WHEEL_SIZE],
     lowres_time: Option<Instant>,
     lowres_stime: Option<SystemTime>,
     lowres_driver: LocalWaker,
-    lowres_driver_sleep: Delay,
+    lowres_driver_sleep: Pin<Box<Delay>>,
 }
 
 impl Timer {
@@ -169,12 +170,12 @@ impl Timer {
             next_expiry: u64::MAX,
             flags: Flags::empty(),
             driver: LocalWaker::new(),
-            driver_sleep: Delay::new(Duration::ZERO),
+            driver_sleep: Box::pin(sleep(Duration::ZERO)),
             occupied: [0; WHEEL_SIZE],
             lowres_time: None,
             lowres_stime: None,
             lowres_driver: LocalWaker::new(),
-            lowres_driver_sleep: Delay::new(Duration::ZERO),
+            lowres_driver_sleep: Box::pin(sleep(Duration::ZERO)),
         }
     }
 
@@ -558,7 +559,7 @@ struct TimerDriver(Rc<RefCell<Timer>>);
 impl TimerDriver {
     fn start(slf: &mut Timer, cell: &Rc<RefCell<Timer>>) {
         slf.flags.insert(Flags::DRIVER_STARTED);
-        slf.driver_sleep = Delay::new(Duration::from_millis(slf.next_expiry_ms()));
+        slf.driver_sleep = Box::pin(sleep(Duration::from_millis(slf.next_expiry_ms())));
 
         crate::spawn(TimerDriver(cell.clone()));
     }
@@ -588,7 +589,7 @@ impl Future for TimerDriver {
                 } else {
                     Duration::from_millis(inner.next_expiry_ms())
                 };
-            inner.driver_sleep.reset(deadline);
+            inner.driver_sleep = Box::pin(sleep(deadline));
         }
 
         loop {
@@ -601,7 +602,7 @@ impl Future for TimerDriver {
                 if let Some(next_expiry) = inner.next_pending_bucket() {
                     inner.next_expiry = next_expiry;
                     let dur = Duration::from_millis(inner.next_expiry_ms());
-                    inner.driver_sleep.reset(dur);
+                    inner.driver_sleep = Box::pin(sleep(dur));
                     continue;
                 } else {
                     inner.next_expiry = u64::MAX;
@@ -618,7 +619,7 @@ struct LowresTimerDriver(Rc<RefCell<Timer>>);
 impl LowresTimerDriver {
     fn start(slf: &mut Timer, cell: &Rc<RefCell<Timer>>) {
         slf.flags.insert(Flags::LOWRES_DRIVER);
-        slf.lowres_driver_sleep = Delay::new(LOWRES_RESOLUTION);
+        slf.lowres_driver_sleep = Box::pin(sleep(LOWRES_RESOLUTION));
 
         crate::spawn(LowresTimerDriver(cell.clone()));
     }
@@ -649,7 +650,7 @@ impl Future for LowresTimerDriver {
                 return Poll::Pending;
             } else {
                 inner.flags.insert(Flags::LOWRES_TIMER);
-                inner.lowres_driver_sleep.reset(LOWRES_RESOLUTION);
+                inner.lowres_driver_sleep = Box::pin(sleep(LOWRES_RESOLUTION));
             }
         }
     }
