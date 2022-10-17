@@ -73,7 +73,8 @@ const fn as_millis(dur: Duration) -> u64 {
 /// Resolution is 5ms
 #[inline]
 pub fn now() -> Instant {
-    TIMER.with(|t| t.borrow_mut().now(t))
+    // TIMER.with(|t| t.borrow_mut().now(t))
+    Instant::now()
 }
 
 /// Returns the system time corresponding to “now”.
@@ -81,7 +82,8 @@ pub fn now() -> Instant {
 /// Resolution is 5ms
 #[inline]
 pub fn system_time() -> SystemTime {
-    TIMER.with(|t| t.borrow_mut().system_time(t))
+    // TIMER.with(|t| t.borrow_mut().system_time(t))
+    SystemTime::now()
 }
 
 /// Returns the system time corresponding to “now”.
@@ -90,7 +92,8 @@ pub fn system_time() -> SystemTime {
 /// This method does not start timer driver.
 #[inline]
 pub fn query_system_time() -> SystemTime {
-    TIMER.with(|t| t.borrow().query_system_time())
+    // TIMER.with(|t| t.borrow().query_system_time())
+    SystemTime::now()
 }
 
 #[derive(Debug)]
