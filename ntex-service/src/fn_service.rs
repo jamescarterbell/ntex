@@ -50,11 +50,12 @@ where
 ///     Ok(())
 /// }
 /// ```
-pub fn fn_factory<F, Srv, Fut, Req, Err>(f: F) -> FnServiceNoConfig<F, Srv, Fut, Req, Err>
+pub fn fn_factory<F, Srv, IntoSrv, Fut, Req, Err>(f: F) -> FnServiceNoConfig<F, Srv, IntoSrv, Fut, Req, Err>
 where
     F: Fn() -> Fut,
     Srv: Service<Req>,
-    Fut: Future<Output = Result<Srv, Err>>,
+    IntoSrv: IntoService<Srv, Req>,
+    Fut: Future<Output = Result<IntoSrv, Err>>,
 {
     FnServiceNoConfig::new(f)
 }
@@ -305,32 +306,35 @@ where
 }
 
 /// Converter for `Fn() -> Future<Service>` fn
-pub struct FnServiceNoConfig<F, S, R, Req, E>
+pub struct FnServiceNoConfig<F, S, IS, R, Req, E>
 where
     F: Fn() -> R,
     S: Service<Req>,
-    R: Future<Output = Result<S, E>>,
+    IS: IntoService<S, Req>,
+    R: Future<Output = Result<IS, E>>,
 {
     f: F,
-    _t: PhantomData<Req>,
+    _t: PhantomData<(S, Req)>,
 }
 
-impl<F, S, R, Req, E> FnServiceNoConfig<F, S, R, Req, E>
+impl<F, S, IS, R, Req, E> FnServiceNoConfig<F, S, IS, R, Req, E>
 where
     F: Fn() -> R,
-    R: Future<Output = Result<S, E>>,
+    R: Future<Output = Result<IS, E>>,
     S: Service<Req>,
+    IS: IntoService<S, Req>,
 {
     fn new(f: F) -> Self {
         Self { f, _t: PhantomData }
     }
 }
 
-impl<F, S, R, Req, E, C> ServiceFactory<Req, C> for FnServiceNoConfig<F, S, R, Req, E>
+impl<F, S, IS, R, Req, E, C> ServiceFactory<Req, C> for FnServiceNoConfig<F, S, IS, R, Req, E>
 where
     F: Fn() -> R,
-    R: Future<Output = Result<S, E>>,
+    R: Future<Output = Result<IS, E>>,
     S: Service<Req>,
+    IS: IntoService<S, Req>,
     C: 'static,
 {
     type Response = S::Response;
@@ -340,15 +344,16 @@ where
 
     #[inline]
     async fn create(&self, _: C) -> Result<S, E> {
-        (self.f)().await
+        (self.f)().await.map(IS::into_service)
     }
 }
 
-impl<F, S, R, Req, E> Clone for FnServiceNoConfig<F, S, R, Req, E>
+impl<F, S, IS, R, Req, E> Clone for FnServiceNoConfig<F, S, IS, R, Req, E>
 where
     F: Fn() -> R + Clone,
-    R: Future<Output = Result<S, E>>,
+    R: Future<Output = Result<IS, E>>,
     S: Service<Req>,
+    IS: IntoService<S, Req>,
 {
     #[inline]
     fn clone(&self) -> Self {
@@ -356,11 +361,12 @@ where
     }
 }
 
-impl<F, S, R, Req, E> fmt::Debug for FnServiceNoConfig<F, S, R, Req, E>
+impl<F, S, IS, R, Req, E> fmt::Debug for FnServiceNoConfig<F, S, IS, R, Req, E>
 where
     F: Fn() -> R,
-    R: Future<Output = Result<S, E>>,
+    R: Future<Output = Result<IS, E>>,
     S: Service<Req>,
+    IS: IntoService<S, Req>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("FnServiceNoConfig")
