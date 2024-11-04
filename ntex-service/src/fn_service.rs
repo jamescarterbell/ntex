@@ -248,6 +248,23 @@ where
     }
 }
 
+impl<F, Fut, Req, Err, Cfg, Srv, IntoSrv>
+    IntoServiceFactory<FnServiceConfig<F, Fut, Cfg, Srv, IntoSrv, Req, Err>, Req, Cfg> for F
+where
+    F: Fn(Cfg) -> Fut,
+    Fut: Future<Output = Result<IntoSrv, Err>>,
+    Srv: Service<Req>,
+    IntoSrv: IntoService<Srv, Req>,
+{
+    #[inline]
+    fn into_factory(self) -> FnServiceConfig<F, Fut, Cfg, Srv, IntoSrv, Req, Err> {
+        FnServiceConfig {
+            f: self,
+            _t: PhantomData,
+        }
+    }
+}
+
 /// Convert `Fn(Config) -> Future<Service>` fn to NewService
 pub struct FnServiceConfig<F, Fut, Cfg, Srv, IntoSrv, Req, Err>
 where
