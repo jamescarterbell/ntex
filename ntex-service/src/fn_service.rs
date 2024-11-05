@@ -265,6 +265,20 @@ where
     }
 }
 
+impl<F, Fut, Req, Err, Srv, IntoSrv>
+    IntoServiceFactory<FnServiceNoConfig<F, Srv, IntoSrv, Fut, Req, Err>, Req> for F
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<IntoSrv, Err>>,
+    Srv: Service<Req>,
+    IntoSrv: IntoService<Srv, Req>,
+{
+    #[inline]
+    fn into_factory(self) -> FnServiceNoConfig<F, Srv, IntoSrv, Fut, Req, Err> {
+        FnServiceNoConfig::new(self)
+    }
+}
+
 /// Convert `Fn(Config) -> Future<Service>` fn to NewService
 pub struct FnServiceConfig<F, Fut, Cfg, Srv, IntoSrv, Req, Err>
 where
