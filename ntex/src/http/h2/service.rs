@@ -48,6 +48,7 @@ where
 
 #[cfg(feature = "openssl")]
 mod openssl {
+    use ntex_service::ChainServiceFactory;
     use ntex_tls::openssl::{SslAcceptor, SslFilter};
     use tls_openssl::ssl;
 
@@ -88,6 +89,7 @@ mod openssl {
 
 #[cfg(feature = "rustls")]
 mod rustls {
+    use ntex_service::ChainServiceFactory;
     use ntex_tls::rustls::{TlsAcceptor, TlsServerFilter};
     use tls_rustls::ServerConfig;
 

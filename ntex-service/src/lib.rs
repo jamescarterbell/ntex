@@ -26,7 +26,7 @@ mod then;
 mod util;
 
 pub use self::apply::{apply_fn, apply_fn_factory};
-pub use self::chain::{chain, chain_factory};
+pub use self::chain::{ChainService, ChainServiceFactory};
 pub use self::ctx::ServiceCtx;
 pub use self::fn_service::{fn_factory, fn_factory_with_config, fn_service};
 pub use self::fn_shutdown::fn_shutdown;
@@ -145,38 +145,6 @@ pub trait Service<Req> {
     fn poll(&self, cx: &mut Context<'_>) -> Result<(), Self::Error> {
         Ok(())
     }
-
-    #[inline]
-    /// Map this service's output to a different type, returning a new service of the resulting type.
-    ///
-    /// This function is similar to the `Option::map` or `Iterator::map` where it will change
-    /// the type of the underlying service.
-    ///
-    /// Note that this function consumes the receiving service and returns a wrapped version of it,
-    /// similar to the existing `map` methods in the standard library.
-    fn map<F, Res>(self, f: F) -> dev::ServiceChain<dev::Map<Self, F, Req, Res>, Req>
-    where
-        Self: Sized,
-        F: Fn(Self::Response) -> Res,
-    {
-        chain(dev::Map::new(self, f))
-    }
-
-    #[inline]
-    /// Map this service's error to a different error, returning a new service.
-    ///
-    /// This function is similar to the `Result::map_err` where it will change the error type of
-    /// the underlying service. This is useful for example to ensure that services have the same
-    /// error type.
-    ///
-    /// Note that this function consumes the receiving service and returns a wrapped version of it.
-    fn map_err<F, E>(self, f: F) -> dev::ServiceChain<dev::MapErr<Self, F, E>, Req>
-    where
-        Self: Sized,
-        F: Fn(Self::Error) -> E,
-    {
-        chain(dev::MapErr::new(self, f))
-    }
 }
 
 /// Factory for creating `Service`s.
@@ -205,54 +173,13 @@ pub trait ServiceFactory<Req, Cfg = ()> {
 
     /// Create and return a new service value asynchronously.
     async fn create(&self, cfg: Cfg) -> Result<Self::Service, Self::InitError>;
-
-    #[inline]
+    
     /// Create and return a new service value asynchronously and wrap into a container
     async fn pipeline(&self, cfg: Cfg) -> Result<Pipeline<Self::Service>, Self::InitError>
     where
         Self: Sized,
     {
         Ok(Pipeline::new(self.create(cfg).await?))
-    }
-
-    #[inline]
-    /// Map this service's output to a different type, returning a new service
-    /// of the resulting type.
-    fn map<F, Res>(
-        self,
-        f: F,
-    ) -> dev::ServiceChainFactory<dev::MapFactory<Self, F, Req, Res, Cfg>, Req, Cfg>
-    where
-        Self: Sized,
-        F: Fn(Self::Response) -> Res + Clone,
-    {
-        chain_factory(dev::MapFactory::new(self, f))
-    }
-
-    #[inline]
-    /// Map this service's error to a different error, returning a new service.
-    fn map_err<F, E>(
-        self,
-        f: F,
-    ) -> dev::ServiceChainFactory<dev::MapErrFactory<Self, Req, Cfg, F, E>, Req, Cfg>
-    where
-        Self: Sized,
-        F: Fn(Self::Error) -> E + Clone,
-    {
-        chain_factory(dev::MapErrFactory::new(self, f))
-    }
-
-    #[inline]
-    /// Map this factory's init error to a different error, returning a new service.
-    fn map_init_err<F, E>(
-        self,
-        f: F,
-    ) -> dev::ServiceChainFactory<dev::MapInitErr<Self, Req, Cfg, F, E>, Req, Cfg>
-    where
-        Self: Sized,
-        F: Fn(Self::InitError) -> E + Clone,
-    {
-        chain_factory(dev::MapInitErr::new(self, f))
     }
 }
 
@@ -332,6 +259,13 @@ where
     async fn create(&self, cfg: Cfg) -> Result<Self::Service, Self::InitError> {
         self.as_ref().create(cfg).await
     }
+    
+    async fn pipeline(&self, cfg: Cfg) -> Result<Pipeline<Self::Service>, Self::InitError>
+    where
+        Self: Sized,
+    {
+        Ok(Pipeline::new(self.create(cfg).await?))
+    }
 }
 
 /// Trait for types that can be converted to a `Service`
@@ -375,7 +309,7 @@ where
 pub mod dev {
     pub use crate::and_then::{AndThen, AndThenFactory};
     pub use crate::apply::{Apply, ApplyFactory};
-    pub use crate::chain::{ServiceChain, ServiceChainFactory};
+    pub use crate::chain::{ChainService, ChainServiceFactory};
     pub use crate::fn_service::{
         FnService, FnServiceConfig, FnServiceFactory, FnServiceNoConfig,
     };

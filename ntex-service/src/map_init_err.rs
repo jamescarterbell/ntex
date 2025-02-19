@@ -69,11 +69,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{chain_factory, fn_factory_with_config, fn_service, ServiceFactory};
+    use crate::{ChainServiceFactory, fn_factory_with_config, fn_service, ServiceFactory};
 
     #[ntex::test]
     async fn map_init_err() {
-        let factory = chain_factory(fn_factory_with_config(|err: &bool| {
+        let factory = fn_factory_with_config(|err: &bool| {
             let err = *err;
             async move {
                 if err {
@@ -82,9 +82,8 @@ mod tests {
                     Ok(fn_service(|i: usize| async move { Ok::<_, ()>(i * 2) }))
                 }
             }
-        }))
-        .map_init_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "err"))
-        .clone();
+        })
+        .map_init_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "err"));
 
         assert!(factory.create(&true).await.is_err());
         assert!(factory.create(&false).await.is_ok());
@@ -103,8 +102,7 @@ mod tests {
                 }
             }
         })
-        .map_init_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "err"))
-        .clone();
+        .map_init_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "err"));
 
         assert!(factory.create(&true).await.is_err());
         assert!(factory.create(&false).await.is_ok());

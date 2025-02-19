@@ -3,8 +3,8 @@ use std::{cell::RefCell, fmt, rc::Rc};
 use crate::http::Response;
 use crate::router::{IntoPattern, ResourceDef};
 use crate::service::boxed::{self, BoxService, BoxServiceFactory};
-use crate::service::dev::{AndThen, ServiceChain, ServiceChainFactory};
-use crate::service::{chain, chain_factory, ServiceCtx};
+use crate::service::dev::{AndThen, ChainService, ChainServiceFactory};
+use crate::service::ServiceCtx;
 use crate::service::{Identity, IntoServiceFactory, Middleware, Service, ServiceFactory};
 use crate::util::Extensions;
 
@@ -21,7 +21,7 @@ type HttpService<Err: ErrorRenderer> =
 type HttpNewService<Err: ErrorRenderer> =
     BoxServiceFactory<(), WebRequest<Err>, WebResponse, Err::Container, ()>;
 type ResourcePipeline<F, Err> =
-    ServiceChain<AndThen<F, ResourceRouter<Err>>, WebRequest<Err>>;
+    AndThen<F, ResourceRouter<Err>>;
 
 /// *Resource* is an entry in resources table which corresponds to requested URL.
 ///
@@ -47,7 +47,7 @@ type ResourcePipeline<F, Err> =
 /// Default behavior could be overriden with `default_resource()` method.
 pub struct Resource<Err: ErrorRenderer, M = Identity, T = Filter<Err>> {
     middleware: M,
-    filter: ServiceChainFactory<T, WebRequest<Err>>,
+    filter: T,
     rdef: Vec<String>,
     name: Option<String>,
     routes: Vec<Route<Err>>,
@@ -64,7 +64,7 @@ impl<Err: ErrorRenderer> Resource<Err> {
             name: None,
             state: None,
             middleware: Identity,
-            filter: chain_factory(Filter::new()),
+            filter: Filter::new(),
             guards: Vec::new(),
             default: Rc::new(RefCell::new(None)),
         }
@@ -299,7 +299,7 @@ where
     {
         // create and configure default resource
         self.default = Rc::new(RefCell::new(Some(Rc::new(boxed::factory(
-            chain_factory(f.into_factory())
+            f.into_factory()
                 .map_init_err(|e| log::error!("Cannot construct default service: {:?}", e)),
         )))));
 
@@ -363,7 +363,7 @@ where
 
 impl<Err, M, F>
     IntoServiceFactory<
-        ResourceServiceFactory<Err, M, ServiceChainFactory<F, WebRequest<Err>>>,
+        ResourceServiceFactory<Err, M, F>,
         WebRequest<Err>,
     > for Resource<Err, M, F>
 where
@@ -379,7 +379,7 @@ where
 {
     fn into_factory(
         self,
-    ) -> ResourceServiceFactory<Err, M, ServiceChainFactory<F, WebRequest<Err>>> {
+    ) -> ResourceServiceFactory<Err, M, F> {
         let router_factory = ResourceRouterFactory {
             state: None,
             routes: self.routes,
@@ -421,7 +421,7 @@ where
     async fn create(&self, _: ()) -> Result<Self::Service, Self::InitError> {
         let filter = self.filter.create(()).await?;
         let routing = self.routing.create(()).await?;
-        Ok(self.middleware.create(chain(filter).and_then(routing)))
+        Ok(self.middleware.create(filter.and_then(routing)))
     }
 }
 

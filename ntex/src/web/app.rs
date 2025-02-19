@@ -1,11 +1,11 @@
 use std::{cell::RefCell, fmt, future::Future, marker::PhantomData, rc::Rc};
 
+use ntex_service::ChainServiceFactory;
+
 use crate::http::Request;
 use crate::router::ResourceDef;
 use crate::service::boxed::{self, BoxServiceFactory};
-use crate::service::{
-    chain_factory, dev::ServiceChainFactory, map_config, IntoServiceFactory,
-};
+use crate::service::{map_config, IntoServiceFactory};
 use crate::service::{Identity, Middleware, Service, ServiceCtx, ServiceFactory};
 use crate::util::{BoxFuture, Extensions};
 
@@ -27,7 +27,7 @@ type FnStateFactory = Box<dyn Fn(Extensions) -> BoxFuture<'static, Result<Extens
 /// for building application instances.
 pub struct App<M, F, Err: ErrorRenderer = DefaultError> {
     middleware: M,
-    filter: ServiceChainFactory<F, WebRequest<Err>>,
+    filter: F,
     services: Vec<Box<dyn AppServiceFactory<Err>>>,
     default: Option<Rc<HttpNewService<Err>>>,
     external: Vec<ResourceDef>,
@@ -42,7 +42,7 @@ impl App<Identity, Filter<DefaultError>, DefaultError> {
     pub fn new() -> Self {
         App {
             middleware: Identity,
-            filter: chain_factory(Filter::new()),
+            filter: Filter::new(),
             state_factories: Vec::new(),
             services: Vec::new(),
             default: None,
@@ -59,7 +59,7 @@ impl<Err: ErrorRenderer> App<Identity, Filter<Err>, Err> {
     pub fn with(err: Err) -> Self {
         App {
             middleware: Identity,
-            filter: chain_factory(Filter::new()),
+            filter: Filter::new(),
             state_factories: Vec::new(),
             services: Vec::new(),
             default: None,
@@ -270,7 +270,7 @@ where
         U::InitError: fmt::Debug,
     {
         // create and configure default resource
-        self.default = Some(Rc::new(boxed::factory(chain_factory(f).map_init_err(
+        self.default = Some(Rc::new(boxed::factory(f.map_init_err(
             |e| log::error!("Cannot construct default service: {:?}", e),
         ))));
 

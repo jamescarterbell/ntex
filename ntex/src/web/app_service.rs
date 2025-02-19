@@ -1,9 +1,10 @@
 use std::{cell::RefCell, marker, rc::Rc, task::Context};
 
+use ntex_service::ChainServiceFactory;
+
 use crate::http::{Request, Response};
 use crate::router::{Path, ResourceDef, Router};
 use crate::service::boxed::{self, BoxService, BoxServiceFactory};
-use crate::service::dev::ServiceChainFactory;
 use crate::service::{fn_service, Middleware, Service, ServiceCtx, ServiceFactory};
 use crate::util::{join, BoxFuture, Extensions};
 
@@ -36,7 +37,7 @@ where
     Err: ErrorRenderer,
 {
     pub(super) middleware: Rc<T>,
-    pub(super) filter: ServiceChainFactory<F, WebRequest<Err>>,
+    pub(super) filter: F,
     pub(super) extensions: RefCell<Option<Extensions>>,
     pub(super) state_factories: Rc<Vec<FnStateFactory>>,
     pub(super) services: Rc<RefCell<Vec<Box<dyn AppServiceFactory<Err>>>>>,

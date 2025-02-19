@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::router::{IntoPattern, ResourceDef};
-use crate::service::{boxed, IntoServiceFactory, ServiceFactory};
+use crate::service::{boxed, IntoServiceFactory, ServiceFactory, dev::ChainServiceFactory};
 use crate::util::Extensions;
 
 use super::config::AppConfig;
@@ -9,6 +9,7 @@ use super::dev::insert_slash;
 use super::error::ErrorRenderer;
 use super::guard::{AllGuard, Guard};
 use super::{request::WebRequest, response::WebResponse, rmap::ResourceMap};
+
 
 pub trait WebServiceFactory<Err: ErrorRenderer> {
     fn register(self, config: &mut WebServiceConfig<Err>);
@@ -251,7 +252,7 @@ impl WebServiceAdapter {
         Err: ErrorRenderer,
     {
         WebServiceImpl {
-            srv: service.into_factory().map_init_err(|_| ()),
+            srv: service.map_init_err(|_| ()),
             rdef: self.rdef,
             name: self.name,
             guards: self.guards,

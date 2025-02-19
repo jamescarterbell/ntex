@@ -18,7 +18,7 @@ use crate::http::{ConnectionType, RequestHead, RequestHeadType, StatusCode, Uri}
 use crate::io::{
     Base, DispatchItem, Dispatcher, DispatcherConfig, Filter, Io, Layer, Sealed,
 };
-use crate::service::{apply_fn, fn_service, IntoService, Pipeline, Service};
+use crate::service::{apply_fn, fn_service, IntoService, Pipeline, Service, dev::ChainService};
 use crate::time::{timeout, Millis, Seconds};
 use crate::{channel::mpsc, rt, util::Ready, ws};
 

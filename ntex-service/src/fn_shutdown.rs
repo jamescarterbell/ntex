@@ -72,7 +72,7 @@ where
 mod tests {
     use std::rc::Rc;
 
-    use crate::{chain, fn_service, Pipeline};
+    use crate::{fn_service, ChainService};
 
     use super::*;
 
@@ -85,7 +85,7 @@ mod tests {
             is_called2.set(true);
         });
 
-        let pipe = Pipeline::new(chain(srv).and_then(on_shutdown).clone());
+        let pipe = srv.and_then(on_shutdown).into_pipeline();
 
         let res = pipe.call(()).await;
         assert_eq!(pipe.ready().await, Ok(()));
