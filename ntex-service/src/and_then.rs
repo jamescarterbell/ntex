@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use super::{util, Service, ServiceCtx, ServiceFactory};
 
 #[derive(Clone, Debug)]
@@ -54,19 +56,20 @@ where
 
 #[derive(Debug, Clone)]
 /// `.and_then()` service factory combinator
-pub struct AndThenFactory<A, B> {
+pub struct AndThenFactory<A, B, Cfg> {
     svc1: A,
     svc2: B,
+    _t: PhantomData<Cfg>
 }
 
-impl<A, B> AndThenFactory<A, B> {
+impl<A, B, Cfg> AndThenFactory<A, B, Cfg> {
     /// Create new `AndThenFactory` combinator
     pub fn new(svc1: A, svc2: B) -> Self {
-        Self { svc1, svc2 }
+        Self { svc1, svc2, _t: PhantomData }
     }
 }
 
-impl<A, B, Req, Cfg> ServiceFactory<Req, Cfg> for AndThenFactory<A, B>
+impl<A, B, Req, Cfg> ServiceFactory<Req, Cfg> for AndThenFactory<A, B, Cfg>
 where
     A: ServiceFactory<Req, Cfg>,
     B: ServiceFactory<A::Response, Cfg, Error = A::Error, InitError = A::InitError>,

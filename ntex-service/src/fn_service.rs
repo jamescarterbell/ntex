@@ -2,103 +2,29 @@ use std::{fmt, future::Future, marker::PhantomData};
 
 use crate::{IntoService, IntoServiceFactory, Service, ServiceCtx, ServiceFactory};
 
-#[inline]
-/// Create `ServiceFactory` for function that can act as a `Service`
-pub fn fn_service<F, Fut, Req, Res, Err, Cfg>(
-    f: F,
-) -> FnServiceFactory<F, Fut, Req, Res, Err, Cfg>
-where
-    F: Fn(Req) -> Fut + Clone,
-    Fut: Future<Output = Result<Res, Err>>,
-{
-    FnServiceFactory::new(f)
-}
-
-#[inline]
-/// Create `ServiceFactory` for function that can produce services
-///
-/// # Example
-///
-/// ```rust
-/// use std::io;
-/// use ntex_service::{fn_factory, fn_service, Service, ServiceFactory};
-///
-/// /// Service that divides two usize values.
-/// async fn div((x, y): (usize, usize)) -> Result<usize, io::Error> {
-///     if y == 0 {
-///         Err(io::Error::new(io::ErrorKind::Other, "divide by zdro"))
-///     } else {
-///         Ok(x / y)
-///     }
-/// }
-///
-/// #[ntex::main]
-/// async fn main() -> io::Result<()> {
-///     // Create service factory that produces `div` services
-///     let factory = fn_factory(|| {
-///         async {Ok::<_, io::Error>(fn_service(div))}
-///     });
-///
-///     // construct new service
-///     let srv = factory.pipeline(&()).await?;
-///
-///     // now we can use `div` service
-///     let result = srv.call((10, 20)).await?;
-///
-///     println!("10 / 20 = {}", result);
-///
-///     Ok(())
-/// }
-/// ```
-pub fn fn_factory<F, Srv, Fut, Req, Err>(f: F) -> FnServiceNoConfig<F, Srv, Fut, Req, Err>
+impl<F, Fut, Srv, Req, Err> IntoServiceFactory<FnServiceNoConfig<F, Srv, Fut, Req, Err>, Req, ()> for F
 where
     F: Fn() -> Fut,
     Srv: Service<Req>,
-    Fut: Future<Output = Result<Srv, Err>>,
-{
-    FnServiceNoConfig::new(f)
+    Fut: Future<Output = Result<Srv, Err>>, {
+
+    #[inline]
+    fn into_factory(self) -> FnServiceNoConfig<F, Srv, Fut, Req, Err> {
+        FnServiceNoConfig { f: self, _t: PhantomData }
+    }
 }
 
-#[inline]
-/// Create `ServiceFactory` for function that accepts config argument and can produce services
-///
-/// Any function that has following form `Fn(Config) -> Future<Output = Service>` could
-/// act as a `ServiceFactory`.
-///
-/// # Example
-///
-/// ```rust
-/// use std::io;
-/// use ntex_service::{fn_factory_with_config, fn_service, Service, ServiceFactory};
-///
-/// #[ntex::main]
-/// async fn main() -> io::Result<()> {
-///     // Create service factory. factory uses config argument for
-///     // services it generates.
-///     let factory = fn_factory_with_config(|y: &usize| {
-///         let y = *y;
-///         async move { Ok::<_, io::Error>(fn_service(move |x: usize| async move { Ok::<_, io::Error>(x * y) })) }
-///     });
-///
-///     // construct new service with config argument
-///     let srv = factory.pipeline(&10).await?;
-///
-///     let result = srv.call(10).await?;
-///     assert_eq!(result, 100);
-///
-///     println!("10 * 10 = {}", result);
-///     Ok(())
-/// }
-/// ```
-pub fn fn_factory_with_config<F, Fut, Cfg, Srv, Req, Err>(
-    f: F,
-) -> FnServiceConfig<F, Fut, Cfg, Srv, Req, Err>
+
+impl<F, Fut, Cfg, Srv, Req, Err> IntoServiceFactory<FnServiceConfig<F, Fut, Cfg, Srv, Req, Err>, Req, Cfg> for F
 where
     F: Fn(Cfg) -> Fut,
     Fut: Future<Output = Result<Srv, Err>>,
-    Srv: Service<Req>,
-{
-    FnServiceConfig { f, _t: PhantomData }
+    Srv: Service<Req> {
+
+    #[inline]
+    fn into_factory(self) -> FnServiceConfig<F, Fut, Cfg, Srv, Req, Err> {
+        FnServiceConfig { f: self, _t: PhantomData }
+    }
 }
 
 pub struct FnService<F, Req> {

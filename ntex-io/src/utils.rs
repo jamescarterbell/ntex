@@ -1,4 +1,4 @@
-use ntex_service::{chain_factory, fn_service, ServiceFactory};
+use ntex_service::{fn_service, ServiceFactory};
 use ntex_util::future::Ready;
 
 use crate::{Filter, Io, IoBoxed};
@@ -27,7 +27,7 @@ where
     S: ServiceFactory<IoBoxed, C>,
     C: Clone,
 {
-    chain_factory(fn_service(|io: Io<F>| Ready::Ok(IoBoxed::from(io))))
+    fn_service(|io: Io<F>| Ready::Ok(IoBoxed::from(io)))
         .map_init_err(|_| panic!())
         .and_then(srv)
 }
