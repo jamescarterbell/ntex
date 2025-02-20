@@ -95,7 +95,7 @@ mod tests {
     use ntex_util::future::lazy;
     use std::{cell::Cell, rc::Rc, task::Context};
 
-    use crate::{chain, chain_factory, fn_factory, Service, ServiceCtx};
+    use crate::{fn_factory, ChainService, ChainServiceFactory, Service, ServiceCtx, ServiceFactory};
 
     #[derive(Clone)]
     struct Srv1(Rc<Cell<usize>>, Rc<Cell<usize>>);
@@ -167,7 +167,7 @@ mod tests {
     async fn test_ready() {
         let cnt = Rc::new(Cell::new(0));
         let cnt_sht = Rc::new(Cell::new(0));
-        let srv = chain(Srv1(cnt.clone(), cnt_sht.clone()))
+        let srv = Srv1(cnt.clone(), cnt_sht.clone())
             .then(Srv2(cnt.clone(), cnt_sht.clone()))
             .into_pipeline();
         let res = srv.ready().await;
@@ -184,7 +184,7 @@ mod tests {
     #[ntex::test]
     async fn test_call() {
         let cnt = Rc::new(Cell::new(0));
-        let srv = chain(Srv1(cnt.clone(), Rc::new(Cell::new(0))))
+        let srv = Srv1(cnt.clone(), Rc::new(Cell::new(0)))
             .then(Srv2(cnt, Rc::new(Cell::new(0))))
             .clone()
             .into_pipeline();
@@ -206,12 +206,11 @@ mod tests {
             let cnt = cnt2.clone();
             async move { Ok::<_, ()>(Srv1(cnt, Rc::new(Cell::new(0)))) }
         });
-        let factory = chain_factory(blank)
+        let factory = blank
             .then(fn_factory(move || {
                 let cnt = cnt.clone();
                 async move { Ok(Srv2(cnt.clone(), Rc::new(Cell::new(0)))) }
-            }))
-            .clone();
+            }));
         let srv = factory.pipeline(&()).await.unwrap();
         let res = srv.call(Ok("srv1")).await;
         assert!(res.is_ok());
